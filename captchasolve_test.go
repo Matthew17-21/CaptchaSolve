@@ -67,7 +67,7 @@ func TestNew(t *testing.T) {
 		require.NotNil(t, queue)
 
 		// Verify queue operations work
-		answer := CaptchaAnswer{solvedAt: time.Now(), CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "123"}}
+		answer := &CaptchaAnswer{solvedAt: time.Now(), CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "123"}}
 		queue.Enqueue(answer)
 
 		result, err := queue.Dequeue()
@@ -79,12 +79,12 @@ func TestNew(t *testing.T) {
 func TestClearTokens(t *testing.T) {
 
 	// Create new CaptchaSolve instance
-	cs := captchasolve{queue: queue.NewSliceQueue[CaptchaAnswer]()}
+	cs := captchasolve{queue: queue.NewSliceQueue[*CaptchaAnswer]()}
 
 	// Push to queue
 	const numElems int = 5
 	for i := 0; i < numElems; i++ {
-		cs.queue.Enqueue(CaptchaAnswer{})
+		cs.queue.Enqueue(&CaptchaAnswer{})
 	}
 
 	// Run method

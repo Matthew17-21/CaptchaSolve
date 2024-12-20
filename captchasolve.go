@@ -14,7 +14,7 @@ type CaptchaSolve interface {
 
 type captchasolve struct {
 	config
-	queue *queue.SliceQueue[CaptchaAnswer]
+	queue *queue.SliceQueue[*CaptchaAnswer]
 }
 
 func New(opts ...ClientOption) CaptchaSolve {
@@ -28,7 +28,7 @@ func New(opts ...ClientOption) CaptchaSolve {
 
 	// Return the instance
 	return &captchasolve{
-		queue:  queue.NewSliceQueue[CaptchaAnswer](),
+		queue:  queue.NewSliceQueue[*CaptchaAnswer](),
 		config: cfg,
 	}
 }
