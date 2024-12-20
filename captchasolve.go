@@ -145,7 +145,7 @@ func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan re
 				continue
 			}
 
-			if res.token != nil {
+			if res.token == nil {
 				log.Println("error - token is nil.")
 				continue
 			}
