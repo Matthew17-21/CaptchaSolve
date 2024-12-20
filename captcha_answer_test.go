@@ -14,12 +14,12 @@ func TestIsExpired(t *testing.T) {
 		SolvedAt time.Time
 		Expected bool
 	}{
-		{Id: "1", SolvedAt: time.Now(), Expected: true},
-		{Id: "2", SolvedAt: time.Now().Add(time.Minute), Expected: true},
-		{Id: "3", SolvedAt: time.Now().Add(time.Hour), Expected: true},
-		{Id: "4", SolvedAt: time.Now().Add(-time.Minute), Expected: true},
-		{Id: "5", SolvedAt: time.Now().Add(-captchaTokenValidity), Expected: false},
-		{Id: "6", SolvedAt: time.Now().Add(-time.Hour), Expected: false},
+		{Id: "1", SolvedAt: time.Now(), Expected: false},
+		{Id: "2", SolvedAt: time.Now().Add(time.Minute), Expected: false},
+		{Id: "3", SolvedAt: time.Now().Add(time.Hour), Expected: false},
+		{Id: "4", SolvedAt: time.Now().Add(-time.Minute), Expected: false},
+		{Id: "5", SolvedAt: time.Now().Add(-captchaTokenValidity), Expected: true},
+		{Id: "6", SolvedAt: time.Now().Add(-time.Hour), Expected: true},
 	}
 
 	for _, tt := range tests {
