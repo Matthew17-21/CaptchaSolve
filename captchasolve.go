@@ -38,89 +38,125 @@ func New(opts ...ClientOption) CaptchaSolve {
 }
 
 func (c *captchasolve) GetToken(ctx context.Context) (*CaptchaAnswer, error) {
-	// Check if pre-harvested tokens are already saved
-	if c.queue.Len() > 0 {
-		// Get non-expired token. If token is expired, continue to harvest new one
-		tkn, err := c.queue.Dequeue()
-		if !errors.Is(err, queue.ErrQueueEmpty) {
-			return nil, fmt.Errorf("error getting token from queue: %w", err)
-		}
-		// TODO: Handle queue.ErrQueueEmpty error
-		if err == nil && !tkn.IsExpired() {
-			return tkn, nil
-		}
+	// Attempt to get a token from queue
+	token, err := c.getValidTokenFromQueue()
+	if err == nil {
+		return token, nil
 	}
 
-	// Create channels for results and errors
-	type result struct {
-		token *CaptchaAnswer
-		err   error
-	}
-	resultsChan := make(chan result, len(c.harvesters))
+	// Start captcha harvesters
+	go c.startHarvesters(ctx)
 
-	// Use WaitGroup to track goroutines
-	// TODO: Consider maxing the waitgroup a field in struct
-	var wg sync.WaitGroup
-	wg.Add(c.maxGoroutines) // TODO: Consider adding 1 at a time
-
-	// Launch goroutine for each harvester
-	for _, harvester := range c.harvesters {
-		go func(h captchatoolsgo.Harvester) {
-			// TODO: For every API key that still has a balance, attempt to get a captcha token
-			tkn, err := h.GetTokenWithContext(ctx)
-			if err != nil {
-				resultsChan <- result{token: nil, err: fmt.Errorf("error getting token: %w", err)}
-				return
-			}
-			resultsChan <- result{token: toCaptchaAnswer(tkn), err: nil}
-		}(harvester)
-	}
-
-	// Close results channel after all goroutines complete
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
-	/*
-		Return the first token that is sent to the results channel
-		All other tokens that get sent to the results channel, add to queue
-	*/
-	var first *CaptchaAnswer
+	// While ctx not cancelled, return first token from queue
 	for {
+		// Make sure ctx is not cancelled
 		select {
-		case res, ok := <-resultsChan:
-			if !ok {
-				// Channel closed
-				if first != nil {
-					return first, nil
-				}
-				return nil, errors.New("no valid tokens found")
-			}
-
-			if res.err != nil {
-				// Log errors and continue to process other results
-				log.Println("Error on response:", res.err)
-				continue
-			}
-
-			if res.token != nil {
-				if first == nil {
-					// Use the first valid token
-					first = res.token
-				} else {
-					// Enqueue valid tokens that are not the first
-					if err := c.queue.Enqueue(res.token); err != nil {
-						return nil, fmt.Errorf("error enqueing token: %w", err)
-					}
-				}
-			}
 		case <-ctx.Done():
-			// Context canceled
 			return nil, ctx.Err()
+		default: // So it doesn;t block
+		}
+
+		// Return the first token from queue
+		token, err := c.getValidTokenFromQueue()
+		if err == nil {
+			return token, nil
 		}
 	}
 }
 
 // ClearTokens removes any/all pre-harvested tokens
 func (c *captchasolve) ClearTokens() { c.queue.Clear() }
+
+// getValidTokenFromQueue attempts to get a non-expired token from the queue
+func (c *captchasolve) getValidTokenFromQueue() (*CaptchaAnswer, error) {
+	// Check if pre-harvested tokens are already saved.
+	// No need to check the length since the Dequeue method does it under the hood.
+	tkn, err := c.queue.Dequeue()
+	if err != nil {
+		if errors.Is(err, queue.ErrQueueEmpty) {
+			return nil, queue.ErrQueueEmpty
+		}
+		return nil, fmt.Errorf("error dequeueing: %w", err)
+	}
+	if tkn.IsExpired() {
+		return c.getValidTokenFromQueue()
+	}
+	return tkn, nil
+}
+
+// Create channels for results and errors
+type result struct {
+	token *CaptchaAnswer
+	err   error
+}
+
+// startHarvesters coordinates concurrent token harvesting from multiple harvesters
+func (c *captchasolve) startHarvesters(ctx context.Context) {
+	// Create a results channel to collect harvester results
+	resultsChan := make(chan result, len(c.harvesters))
+
+	// Use a WaitGroup to manage goroutines
+	// TODO: Consider maxing the waitgroup a field in struct
+	// wg.Add(c.maxGoroutines) // TODO: Consider adding 1 at a time
+	var wg sync.WaitGroup
+	for _, harvester := range c.harvesters {
+		wg.Add(1)
+		go func(h captchatoolsgo.Harvester) {
+			defer wg.Done()
+			c.harvestToken(ctx, h, resultsChan)
+		}(harvester)
+	}
+
+	// Close the results channel once all harvesters finish
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	// Process the results to retrieve the first valid token
+	c.processResults(ctx, resultsChan)
+}
+
+func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harvester, resultsChan chan<- result) {
+	tkn, err := h.GetTokenWithContext(ctx)
+	if err != nil {
+		log.Printf("Failed to get a token. Error: %v. Sending to channel...\n", err)
+		resultsChan <- result{token: nil, err: fmt.Errorf("error getting token: %w", err)}
+		return
+	}
+	log.Printf("Successfully got token with ID %v! Sending to channel...\n", tkn.Id())
+	resultsChan <- result{token: toCaptchaAnswer(tkn), err: nil}
+}
+
+func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan result) (*CaptchaAnswer, error) {
+	/*
+		Return the first token that is sent to the results channel
+		All other tokens that get sent to the results channel, add to queue
+	*/
+	for {
+		select {
+		case res, ok := <-resultsChan:
+			if !ok {
+				return nil, errors.New("no valid tokens found")
+			}
+
+			if res.err != nil {
+				log.Println("Error on response:", res.err)
+				continue
+			}
+
+			if res.token != nil {
+				log.Println("error - token is nil.")
+				continue
+			}
+
+			// Add the token to queue
+			if err := c.queue.Enqueue(res.token); err != nil {
+				return nil, fmt.Errorf("error enqueuing token: %w", err)
+			}
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
