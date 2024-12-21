@@ -11,7 +11,7 @@ import (
 )
 
 type CaptchaSolve interface {
-	GetToken(context.Context) (*CaptchaAnswer, error)
+	GetToken(context.Context, ...*captchatoolsgo.AdditionalData) (*CaptchaAnswer, error)
 	ClearTokens() // Clears all pre-harvested tokens
 }
 
@@ -36,7 +36,7 @@ func New(opts ...ClientOption) CaptchaSolve {
 	}
 }
 
-func (c *captchasolve) GetToken(ctx context.Context) (*CaptchaAnswer, error) {
+func (c *captchasolve) GetToken(ctx context.Context, additional ...*captchatoolsgo.AdditionalData) (*CaptchaAnswer, error) {
 	// Attempt to get a token from queue
 	token, err := c.getValidTokenFromQueue()
 	if err == nil {
@@ -44,7 +44,7 @@ func (c *captchasolve) GetToken(ctx context.Context) (*CaptchaAnswer, error) {
 	}
 
 	// Start captcha harvesters
-	go c.startHarvesters(ctx)
+	go c.startHarvesters(ctx, additional...)
 
 	// While ctx not cancelled, return first token from queue
 	for {
@@ -94,7 +94,7 @@ type result struct {
 }
 
 // startHarvesters coordinates concurrent token harvesting from multiple harvesters
-func (c *captchasolve) startHarvesters(ctx context.Context) {
+func (c *captchasolve) startHarvesters(ctx context.Context, additional ...*captchatoolsgo.AdditionalData) {
 	// Create a results channel to collect harvester results
 	resultsChan := make(chan result, len(c.harvesters))
 
@@ -108,7 +108,7 @@ func (c *captchasolve) startHarvesters(ctx context.Context) {
 		c.logger.Info("Created harvester #%d", i+1)
 		go func(h captchatoolsgo.Harvester) {
 			defer wg.Done()
-			c.harvestToken(ctx, h, resultsChan)
+			c.harvestToken(ctx, h, resultsChan, additional...)
 		}(harvester)
 	}
 
@@ -122,9 +122,9 @@ func (c *captchasolve) startHarvesters(ctx context.Context) {
 	c.processResults(ctx, resultsChan)
 }
 
-func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harvester, resultsChan chan<- result) {
+func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harvester, resultsChan chan<- result, additional ...*captchatoolsgo.AdditionalData) {
 	c.logger.Info("Attempting to get a token from harvester...")
-	tkn, err := h.GetTokenWithContext(ctx)
+	tkn, err := h.GetTokenWithContext(ctx, additional...)
 	if err != nil {
 		c.logger.Error("Failed to get a token. Error: %v", err)
 		resultsChan <- result{token: nil, err: fmt.Errorf("error getting token: %w", err)}
