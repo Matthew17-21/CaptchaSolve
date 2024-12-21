@@ -46,6 +46,11 @@ func (c *captchasolve) startHarvesters(ctx context.Context, additional ...*captc
 	c.processResults(ctx, resultsChan)
 }
 
+// harvestToken attempts to obtain a captcha token from a single harvester and sends the result
+// through the results channel. It handles the actual communication with the captcha service.
+//
+// The function automatically converts the harvester's token to a CaptchaAnswer before sending.
+// It logs the progress and any errors that occur during the harvesting process.
 func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harvester, resultsChan chan<- result, additional ...*captchatoolsgo.AdditionalData) {
 	c.logger.Info("Attempting to get a token from harvester...")
 	tkn, err := h.GetTokenWithContext(ctx, additional...)
@@ -58,6 +63,11 @@ func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harves
 	resultsChan <- result{token: toCaptchaAnswer(tkn), err: nil}
 }
 
+// processResults handles the continuous processing of harvested tokens from multiple harvesters.
+// It receives results from the resultsChan and adds valid tokens to the queue for later use.
+//
+// Any valid tokens received are added to the queue for future use.
+// Invalid results (nil tokens or errors) are logged and skipped.
 func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan result) (*CaptchaAnswer, error) {
 	/*
 		Return the first token that is sent to the results channel

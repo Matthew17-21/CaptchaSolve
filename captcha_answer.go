@@ -28,6 +28,11 @@ func toCaptchaAnswer(c *captchatoolsgo.CaptchaAnswer) *CaptchaAnswer {
 	return newCaptchaAnswer(c, time.Now())
 }
 
+// newCaptchaAnswer creates a new CaptchaAnswer instance with a specified solved timestamp.
+//
+// This function handles the actual conversion from the external to internal format,
+// embedding the original answer and adding the solved timestamp. It safely handles
+// nil inputs by returning an empty CaptchaAnswer struct.
 func newCaptchaAnswer(c *captchatoolsgo.CaptchaAnswer, solvedAt time.Time) *CaptchaAnswer {
 	if c == nil {
 		return &CaptchaAnswer{}

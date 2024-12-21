@@ -8,7 +8,20 @@ import (
 )
 
 type CaptchaSolve interface {
+	// GetToken retrieves a valid captcha token using the configured harvesters.
+	// It first attempts to return a pre-harvested token from the queue, and if none
+	// are available, starts harvesting new tokens.
+	//
+	// The context parameter can be used to cancel the token retrieval operation.
+	// Additional data can be provided if required by the harvesting service.
+	//
+	// Returns a valid CaptchaAnswer and nil error if successful, or nil and an error
+	// if token retrieval fails or is cancelled.
 	GetToken(context.Context, ...*captchatoolsgo.AdditionalData) (*CaptchaAnswer, error)
+
+	// ClearTokens removes all pre-harvested tokens from the internal queue.
+	// This is useful when you want to ensure fresh tokens are retrieved on
+	// subsequent GetToken calls or when you need to clear potentially stale tokens.
 	ClearTokens() // Clears all pre-harvested tokens
 }
 
@@ -17,6 +30,16 @@ type captchasolve struct {
 	queue *queue.SliceQueue[*CaptchaAnswer]
 }
 
+// New initializes a CaptchaSolve with default configuration and then applies any provided
+// option functions to customize the configuration. It creates an empty token queue and
+// returns the fully initialized instance ready for use.
+//
+// Example:
+//
+//	solver := New(
+//	    WithMaxGoroutines(5),
+//	    WithLogger(customLogger),
+//	)
 func New(opts ...ClientOption) CaptchaSolve {
 	// Create default config
 	cfg := defaultConfig()
@@ -33,6 +56,18 @@ func New(opts ...ClientOption) CaptchaSolve {
 	}
 }
 
+// GetToken retrieves a valid captcha token, either from the pre-harvested queue or by
+// starting new harvesters if needed.
+//
+// The function first attempts to get a pre-harvested token from the queue. If none are
+// available, it starts background harvesters to generate new tokens. It continuously
+// checks the queue for new tokens until either:
+//   - A valid token is found
+//   - The context is cancelled
+//
+// The function is non-blocking on harvester initialization, allowing multiple concurrent
+// calls to GetToken. Harvesters run in the background and add tokens to the queue as
+// they become available.
 func (c *captchasolve) GetToken(ctx context.Context, additional ...*captchatoolsgo.AdditionalData) (*CaptchaAnswer, error) {
 	// Attempt to get a token from queue
 	token, err := c.getValidTokenFromQueue()
