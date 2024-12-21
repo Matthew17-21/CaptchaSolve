@@ -98,16 +98,24 @@ func (c *captchasolve) startHarvesters(ctx context.Context, additional ...*captc
 	// Create a results channel to collect harvester results
 	resultsChan := make(chan result, len(c.harvesters))
 
-	// Use a WaitGroup to manage goroutines
-	// TODO: Consider maxing the waitgroup a field in struct
-	// wg.Add(c.maxGoroutines) // TODO: Consider adding 1 at a time
-	c.logger.Info("Creating %d havesters...", len(c.harvesters))
+	// Create a semaphore channel to limit concurrent goroutines
+	sem := make(chan struct{}, c.maxGoroutines)
+
+	// Create harvesters
+	c.logger.Info("Creating %d harvesters...", len(c.harvesters))
 	var wg sync.WaitGroup
 	for i, harvester := range c.harvesters {
 		wg.Add(1)
 		c.logger.Info("Created harvester #%d", i+1)
+
+		// Acquire semaphore
+		sem <- struct{}{} // Will block if maxConcurrent goroutines are running
+
 		go func(h captchatoolsgo.Harvester) {
-			defer wg.Done()
+			defer func() {
+				<-sem // Release semaphore when done
+				wg.Done()
+			}()
 			c.harvestToken(ctx, h, resultsChan, additional...)
 		}(harvester)
 	}
