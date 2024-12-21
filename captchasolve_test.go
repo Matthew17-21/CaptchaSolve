@@ -79,32 +79,6 @@ func TestNew(t *testing.T) {
 	})
 }
 
-// MockTokenQueue is a mock implementation of TokenQueue
-type MockTokenQueue struct {
-	mock.Mock
-}
-
-func (m *MockTokenQueue) Enqueue(token *CaptchaAnswer) error {
-	args := m.Called(token)
-	return args.Error(0)
-}
-
-func (m *MockTokenQueue) Dequeue() (*CaptchaAnswer, error) {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*CaptchaAnswer), args.Error(1)
-}
-
-func (m *MockTokenQueue) Clear() {
-	m.Called()
-}
-
-func (m *MockTokenQueue) Len() int {
-	return 0
-}
-
 // MockHarvester is a mock implementation of captchatoolsgo.Harvester
 type MockHarvester struct {
 	mock.Mock
@@ -121,7 +95,7 @@ func (m *MockHarvester) GetTokenWithContext(ctx context.Context, additional ...*
 func TestGetToken(t *testing.T) {
 	t.Run("returns valid token from queue immediately", func(t *testing.T) {
 		// Arrange
-		mockQueue := new(MockTokenQueue)
+		mockQueue := new(mockQueue)
 		expectedToken := &CaptchaAnswer{
 			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
 			solvedAt:      time.Now(),
@@ -144,7 +118,7 @@ func TestGetToken(t *testing.T) {
 
 	t.Run("handles context cancellation", func(t *testing.T) {
 		// Arrange
-		mockQueue := new(MockTokenQueue)
+		mockQueue := new(mockQueue)
 		mockQueue.On("Dequeue").Return(nil, errors.New("queue empty"))
 
 		solver := &captchasolve{
@@ -167,7 +141,7 @@ func TestGetToken(t *testing.T) {
 
 	t.Run("retries queue until valid token is available", func(t *testing.T) {
 		// Arrange
-		mockQueue := new(MockTokenQueue)
+		mockQueue := new(mockQueue)
 		expectedToken := &CaptchaAnswer{
 			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
 			solvedAt:      time.Now(),
@@ -193,7 +167,7 @@ func TestGetToken(t *testing.T) {
 
 	t.Run("starts harvesters when queue is empty", func(t *testing.T) {
 		// Arrange
-		mockQueue := new(MockTokenQueue)
+		mockQueue := new(mockQueue)
 		mockHarvester := new(MockHarvester)
 		expectedToken := &CaptchaAnswer{
 			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "harvested-token"},
@@ -226,7 +200,7 @@ func TestGetToken(t *testing.T) {
 
 	t.Run("handles nil additional data", func(t *testing.T) {
 		// Arrange
-		mockQueue := new(MockTokenQueue)
+		mockQueue := new(mockQueue)
 		expectedToken := &CaptchaAnswer{
 			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
 			solvedAt:      time.Now(),

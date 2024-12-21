@@ -5,7 +5,34 @@ import (
 
 	"github.com/Matthew17-21/CaptchaSolve/internal/queue"
 	"github.com/stretchr/testify/require"
+	"github.com/test-go/testify/mock"
 )
+
+type mockQueue struct {
+	mock.Mock
+}
+
+func (m *mockQueue) Enqueue(token *CaptchaAnswer) error {
+	args := m.Called(token)
+	return args.Error(0)
+}
+
+func (m *mockQueue) Dequeue() (*CaptchaAnswer, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*CaptchaAnswer), args.Error(1)
+}
+
+func (m *mockQueue) Clear() {
+	m.Called()
+}
+
+func (m *mockQueue) Len() int {
+	args := m.Called()
+	return args.Int(0) // Retrieve the first return value as an int
+}
 
 func TestClearTokens(t *testing.T) {
 

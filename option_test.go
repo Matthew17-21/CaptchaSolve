@@ -1,31 +1,17 @@
 package captchasolve
 
 import (
-	"context"
 	"testing"
 
 	captchatoolsgo "github.com/Matthew17-21/Captcha-Tools/captchatools-go"
 	"github.com/stretchr/testify/assert"
 )
 
-type mockLogger struct{}
-
-func (m *mockLogger) Log(message string)               {}
-func (m *mockLogger) Debug(format string, args ...any) {}
-func (m *mockLogger) Info(format string, args ...any)  {}
-func (m *mockLogger) Warn(format string, args ...any)  {}
-func (m *mockLogger) Error(format string, args ...any) {}
-
-type mockHarvester struct{}
-
 func (m *mockHarvester) Harvest() string { return "mock-token" }
 
 func (m *mockHarvester) GetBalance() (float32, error) { return 0, nil }
 
 func (m *mockHarvester) GetToken(additional ...*captchatoolsgo.AdditionalData) (*captchatoolsgo.CaptchaAnswer, error) {
-	return nil, nil
-} // Function to get a captcha token
-func (m *mockHarvester) GetTokenWithContext(ctx context.Context, additional ...*captchatoolsgo.AdditionalData) (*captchatoolsgo.CaptchaAnswer, error) {
 	return nil, nil
 } // Function to get a captcha token
 
