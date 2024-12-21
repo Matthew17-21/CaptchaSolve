@@ -14,7 +14,7 @@ Program to help streamline captcha solving by routing requests to third-party se
 - [x] Remove print statements
 - [x] GetTokenWithContext
 - [ ] Refactor
-- [ ] GetToken with additional data
+- [x] GetToken with additional data
 - [ ] maxGoroutines functionality
 
 ## Benchmarks
