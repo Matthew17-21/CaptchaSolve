@@ -7,6 +7,14 @@ import (
 	"github.com/Matthew17-21/CaptchaSolve/internal/queue"
 )
 
+// TokenQueue defines the interface for token queue operations
+type tokenQueue interface {
+	Enqueue(*CaptchaAnswer) error
+	Dequeue() (*CaptchaAnswer, error)
+	Clear()
+	Len() int
+}
+
 // ClearTokens removes any/all pre-harvested tokens
 func (c *captchasolve) ClearTokens() { c.queue.Clear() }
 

@@ -27,7 +27,7 @@ type CaptchaSolve interface {
 
 type captchasolve struct {
 	config
-	queue *queue.SliceQueue[*CaptchaAnswer]
+	queue tokenQueue
 }
 
 // New initializes a CaptchaSolve with default configuration and then applies any provided
