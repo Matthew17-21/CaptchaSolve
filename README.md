@@ -10,6 +10,11 @@ Program to help streamline captcha solving by routing requests to third-party se
 - [x] Each time a captcha is requested, and no tokens are available, start a goroutine
 - [x] Global solver vs instances
 - [ ] If a API key in a given site is out of funds, do not keep requesting from the site
+- [ ] Add debugger
+- [ ] Remove print statements
+- [ ] GetTokenWithContext
+- [ ] Refactor
+- [ ] GetToken with additional data
 
 ## Benchmarks
 
