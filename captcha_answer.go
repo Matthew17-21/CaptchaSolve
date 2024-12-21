@@ -20,5 +20,20 @@ type CaptchaAnswer struct {
 // It compares the current time with the solve time plus the allowed validity duration.
 func (c CaptchaAnswer) IsExpired() bool {
 	expirationTime := c.solvedAt.Add(captchaTokenValidity)
-	return time.Now().Before(expirationTime)
+	return time.Now().After(expirationTime)
+}
+
+// toCaptchaAnswer converts captchatoolsgo.CaptchaAnswer to CaptchaAnswer
+func toCaptchaAnswer(c *captchatoolsgo.CaptchaAnswer) *CaptchaAnswer {
+	return newCaptchaAnswer(c, time.Now())
+}
+
+func newCaptchaAnswer(c *captchatoolsgo.CaptchaAnswer, solvedAt time.Time) *CaptchaAnswer {
+	if c == nil {
+		return &CaptchaAnswer{}
+	}
+	return &CaptchaAnswer{
+		*c,
+		solvedAt,
+	}
 }

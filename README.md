@@ -5,11 +5,17 @@ Program to help streamline captcha solving by routing requests to third-party se
 ## TODO
 
 - [x] Initialize a solver for each site in the config
-- [ ] Store captcha tokens until requested
+- [x] Store captcha tokens until requested
 - [ ] Scheduler to delete expired tokens?
-- [ ] Each time a captcha is requested, and no tokens are available, start a goroutine
+- [x] Each time a captcha is requested, and no tokens are available, start a goroutine
 - [x] Global solver vs instances
 - [ ] If a API key in a given site is out of funds, do not keep requesting from the site
+- [x] Add logger
+- [x] Remove print statements
+- [x] GetTokenWithContext
+- [ ] Refactor
+- [ ] GetToken with additional data
+- [ ] maxGoroutines functionality
 
 ## Benchmarks
 
