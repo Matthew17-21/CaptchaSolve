@@ -1,12 +1,15 @@
 package captchasolve
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	captchatoolsgo "github.com/Matthew17-21/Captcha-Tools/captchatools-go"
-	"github.com/Matthew17-21/CaptchaSolve/internal/queue"
 	"github.com/stretchr/testify/require"
+	"github.com/test-go/testify/assert"
+	"github.com/test-go/testify/mock"
 )
 
 func TestNew(t *testing.T) {
@@ -76,20 +79,145 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestClearTokens(t *testing.T) {
+// MockHarvester is a mock implementation of captchatoolsgo.Harvester
+type MockHarvester struct {
+	mock.Mock
+}
 
-	// Create new CaptchaSolve instance
-	cs := captchasolve{queue: queue.NewSliceQueue[*CaptchaAnswer]()}
-
-	// Push to queue
-	const numElems int = 5
-	for i := 0; i < numElems; i++ {
-		cs.queue.Enqueue(&CaptchaAnswer{})
+func (m *MockHarvester) GetTokenWithContext(ctx context.Context, additional ...*captchatoolsgo.AdditionalData) (*captchatoolsgo.CaptchaAnswer, error) {
+	args := m.Called(ctx, additional)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
+	return args.Get(0).(*captchatoolsgo.CaptchaAnswer), args.Error(1)
+}
 
-	// Run method
-	cs.ClearTokens()
+func TestGetToken(t *testing.T) {
+	t.Run("returns valid token from queue immediately", func(t *testing.T) {
+		// Arrange
+		mockQueue := new(mockQueue)
+		expectedToken := &CaptchaAnswer{
+			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
+			solvedAt:      time.Now(),
+		}
+		mockQueue.On("Dequeue").Return(expectedToken, nil)
 
-	// Assert
-	require.Empty(t, cs.queue.Len())
+		solver := &captchasolve{
+			queue: mockQueue,
+		}
+		solver.logger = NewSilentLogger()
+
+		// Act
+		token, err := solver.GetToken(context.Background())
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedToken, token)
+		mockQueue.AssertExpectations(t)
+	})
+
+	t.Run("handles context cancellation", func(t *testing.T) {
+		// Arrange
+		mockQueue := new(mockQueue)
+		mockQueue.On("Dequeue").Return(nil, errors.New("queue empty"))
+
+		solver := &captchasolve{
+			queue: mockQueue,
+		}
+		solver.logger = NewSilentLogger()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		// Act
+		token, err := solver.GetToken(ctx)
+
+		// Assert
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, context.Canceled))
+		assert.Nil(t, token)
+		mockQueue.AssertExpectations(t)
+	})
+
+	t.Run("retries queue until valid token is available", func(t *testing.T) {
+		// Arrange
+		mockQueue := new(mockQueue)
+		expectedToken := &CaptchaAnswer{
+			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
+			solvedAt:      time.Now(),
+		}
+
+		// First call returns empty, second call returns valid token
+		mockQueue.On("Dequeue").Return(nil, errors.New("queue empty")).Once()
+		mockQueue.On("Dequeue").Return(expectedToken, nil).Once()
+
+		solver := &captchasolve{
+			queue: mockQueue,
+		}
+		solver.logger = NewSilentLogger()
+
+		// Act
+		token, err := solver.GetToken(context.Background())
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedToken, token)
+		mockQueue.AssertExpectations(t)
+	})
+
+	t.Run("starts harvesters when queue is empty", func(t *testing.T) {
+		// Arrange
+		mockQueue := new(mockQueue)
+		mockHarvester := new(MockHarvester)
+		expectedToken := &CaptchaAnswer{
+			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "harvested-token"},
+			solvedAt:      time.Now(),
+		}
+
+		// Queue is initially empty, then gets token from harvester
+		mockQueue.On("Dequeue").Return(nil, errors.New("queue empty")).Once()
+		mockQueue.On("Dequeue").Return(expectedToken, nil).Once()
+
+		mockHarvester.On("GetTokenWithContext", mock.Anything, mock.Anything).Return(
+			&captchatoolsgo.CaptchaAnswer{Token: "harvested-token"},
+			nil,
+		)
+
+		solver := &captchasolve{
+			queue: mockQueue,
+		}
+		solver.harvesters = make([]captchatoolsgo.Harvester, 0)
+		solver.logger = NewSilentLogger()
+
+		// Act
+		token, err := solver.GetToken(context.Background())
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedToken, token)
+		mockQueue.AssertExpectations(t)
+	})
+
+	t.Run("handles nil additional data", func(t *testing.T) {
+		// Arrange
+		mockQueue := new(mockQueue)
+		expectedToken := &CaptchaAnswer{
+			CaptchaAnswer: captchatoolsgo.CaptchaAnswer{Token: "valid-token"},
+			solvedAt:      time.Now(),
+		}
+		mockQueue.On("Dequeue").Return(expectedToken, nil)
+
+		solver := &captchasolve{
+			queue: mockQueue,
+		}
+		solver.logger = NewSilentLogger()
+
+		// Act
+		token, err := solver.GetToken(context.Background(), nil)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedToken, token)
+		mockQueue.AssertExpectations(t)
+	})
 }
