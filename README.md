@@ -12,7 +12,7 @@ Program to help streamline captcha solving by routing requests to third-party se
 - [ ] If a API key in a given site is out of funds, do not keep requesting from the site
 - [ ] Add debugger
 - [ ] Remove print statements
-- [ ] GetTokenWithContext
+- [x] GetTokenWithContext
 - [ ] Refactor
 - [ ] GetToken with additional data
 
