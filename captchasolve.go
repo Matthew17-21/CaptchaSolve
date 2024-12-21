@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 
 	captchatoolsgo "github.com/Matthew17-21/Captcha-Tools/captchatools-go"
@@ -71,14 +70,18 @@ func (c *captchasolve) ClearTokens() { c.queue.Clear() }
 func (c *captchasolve) getValidTokenFromQueue() (*CaptchaAnswer, error) {
 	// Check if pre-harvested tokens are already saved.
 	// No need to check the length since the Dequeue method does it under the hood.
+	c.logger.Info("Attempting to get a valid token from queue...")
 	tkn, err := c.queue.Dequeue()
 	if err != nil {
 		if errors.Is(err, queue.ErrQueueEmpty) {
+			c.logger.Info("Can't get token - queue is empty.")
 			return nil, queue.ErrQueueEmpty
 		}
+		c.logger.Error("Unknown error getting token from queue:", err)
 		return nil, fmt.Errorf("error dequeueing: %w", err)
 	}
 	if tkn.IsExpired() {
+		c.logger.Info("Token is expired. Getting new one from queue...")
 		return c.getValidTokenFromQueue()
 	}
 	return tkn, nil
@@ -98,9 +101,11 @@ func (c *captchasolve) startHarvesters(ctx context.Context) {
 	// Use a WaitGroup to manage goroutines
 	// TODO: Consider maxing the waitgroup a field in struct
 	// wg.Add(c.maxGoroutines) // TODO: Consider adding 1 at a time
+	c.logger.Info("Creating %d havesters...", len(c.harvesters))
 	var wg sync.WaitGroup
-	for _, harvester := range c.harvesters {
+	for i, harvester := range c.harvesters {
 		wg.Add(1)
+		c.logger.Info("Created harvester #%d", i+1)
 		go func(h captchatoolsgo.Harvester) {
 			defer wg.Done()
 			c.harvestToken(ctx, h, resultsChan)
@@ -118,13 +123,14 @@ func (c *captchasolve) startHarvesters(ctx context.Context) {
 }
 
 func (c *captchasolve) harvestToken(ctx context.Context, h captchatoolsgo.Harvester, resultsChan chan<- result) {
+	c.logger.Info("Attempting to get a token from harvester...")
 	tkn, err := h.GetTokenWithContext(ctx)
 	if err != nil {
-		log.Printf("Failed to get a token. Error: %v. Sending to channel...\n", err)
+		c.logger.Error("Failed to get a token. Error: %v", err)
 		resultsChan <- result{token: nil, err: fmt.Errorf("error getting token: %w", err)}
 		return
 	}
-	log.Printf("Successfully got token with ID %v! Sending to channel...\n", tkn.Id())
+	c.logger.Info("Successfully got token with ID %v!", tkn.Id())
 	resultsChan <- result{token: toCaptchaAnswer(tkn), err: nil}
 }
 
@@ -133,6 +139,7 @@ func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan re
 		Return the first token that is sent to the results channel
 		All other tokens that get sent to the results channel, add to queue
 	*/
+	c.logger.Info("Processing results...")
 	for {
 		select {
 		case res, ok := <-resultsChan:
@@ -141,12 +148,12 @@ func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan re
 			}
 
 			if res.err != nil {
-				log.Println("Error on response:", res.err)
+				c.logger.Error("Error on response:", res.err)
 				continue
 			}
 
 			if res.token == nil {
-				log.Println("error - token is nil.")
+				c.logger.Warn("error - token is nil. Retrying...")
 				continue
 			}
 
@@ -156,6 +163,7 @@ func (c *captchasolve) processResults(ctx context.Context, resultsChan <-chan re
 			}
 
 		case <-ctx.Done():
+			c.logger.Warn("Context is done. Stopping...")
 			return nil, ctx.Err()
 		}
 	}
