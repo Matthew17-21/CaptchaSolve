@@ -29,4 +29,11 @@ func WithMaxGoroutines(max int) ClientOption {
 	}
 }
 
-// func WithLogger()
+// WithLogger is a functional option for configuring a client with a custom logger.
+// It accepts a Logger instance and returns a ClientOption function that sets the
+// provided Logger in the client's configuration.
+func WithLogger(l Logger) ClientOption {
+	return func(c *config) {
+		c.logger = l
+	}
+}
